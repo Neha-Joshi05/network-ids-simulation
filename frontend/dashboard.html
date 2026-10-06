@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SENTINEL IDS — Security Operations Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #020408;
+  --surface:   #050d14;
+  --panel:     #070f1a;
+  --border:    #0d2035;
+  --border2:   #0a3050;
+  --text:      #c8e6f0;
+  --muted:     #3a6080;
+  --green:     #00ff88;
+  --green2:    #00cc6a;
+  --green-dim: rgba(0,255,136,0.07);
+  --red:       #ff2244;
+  --red2:      #cc1133;
+  --red-dim:   rgba(255,34,68,0.10);
+  --amber:     #ffaa00;
+  --amber-dim: rgba(255,170,0,0.10);
+  --blue:      #00aaff;
+  --blue-dim:  rgba(0,170,255,0.08);
+  --cyan:      #00eeff;
+  --cyan-dim:  rgba(0,238,255,0.07);
+  --purple:    #aa44ff;
+  --critical:  #ff2244;
+  --high:      #ff6600;
+  --medium:    #ffaa00;
+  --low:       #00aaff;
+  --info:      #00ff88;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline effect */
+body::after {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,170,255,0.015) 2px, rgba(0,170,255,0.015) 4px
+  );
+  pointer-events:none; z-index:9999;
+}
+
+/* Grid */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,170,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,170,255,0.025) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none; z-index:0;
+}
+
+/* Ambient glows */
+.glow1,.glow2,.glow3{position:fixed;border-radius:50%;filter:blur(160px);pointer-events:none;z-index:0;}
+.glow1{width:600px;height:600px;top:-200px;right:-100px;background:rgba(255,34,68,0.04);}
+.glow2{width:500px;height:500px;bottom:-100px;left:-100px;background:rgba(0,170,255,0.04);}
+.glow3{width:400px;height:400px;top:40%;left:40%;background:rgba(0,255,136,0.03);}
+
+.wrap{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;}
+
+/* ── HEADER ── */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 28px;
+  background:rgba(5,13,20,0.95);
+  border-bottom:1px solid var(--border2);
+  backdrop-filter:blur(20px);
+  position:sticky; top:0; z-index:100;
+}
+
+.logo {
+  display:flex; align-items:center; gap:12px;
+  font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900;
+  letter-spacing:3px; color:var(--cyan);
+  text-shadow:0 0 20px rgba(0,238,255,0.5);
+}
+.logo-badge {
+  width:36px; height:36px; border:2px solid var(--cyan);
+  border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:18px; box-shadow:0 0 16px rgba(0,238,255,0.4), inset 0 0 12px rgba(0,238,255,0.1);
+  animation:borderPulse 3s ease-in-out infinite;
+}
+@keyframes borderPulse{0%,100%{box-shadow:0 0 16px rgba(0,238,255,0.4),inset 0 0 12px rgba(0,238,255,0.1);}50%{box-shadow:0 0 28px rgba(0,238,255,0.7),inset 0 0 20px rgba(0,238,255,0.2);}}
+
+.logo-sub{font-size:0.55rem;letter-spacing:4px;color:var(--muted);font-family:'Share Tech Mono',monospace;}
+
+.header-center{display:flex;gap:20px;}
+.threat-level{
+  display:flex; align-items:center; gap:8px;
+  font-family:'Share Tech Mono',monospace; font-size:0.7rem;
+  padding:5px 14px; border-radius:4px;
+  border:1px solid; letter-spacing:1px;
+}
+.threat-level.low    {color:var(--green);  border-color:rgba(0,255,136,0.3);  background:var(--green-dim);}
+.threat-level.medium {color:var(--amber);  border-color:rgba(255,170,0,0.3);  background:var(--amber-dim);}
+.threat-level.high   {color:var(--high);   border-color:rgba(255,102,0,0.3);  background:rgba(255,102,0,0.08);}
+.threat-level.critical{color:var(--red);   border-color:rgba(255,34,68,0.4);  background:var(--red-dim); animation:alertBlink 1s infinite;}
+@keyframes alertBlink{0%,100%{opacity:1;}50%{opacity:0.6;}}
+
+.header-right{display:flex;align-items:center;gap:16px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--muted);}
+.status-dot{width:8px;height:8px;border-radius:50%;}
+.status-dot.online{background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2s infinite;}
+.status-dot.offline{background:var(--red);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+/* ── MAIN ── */
+main{display:grid;grid-template-columns:1fr 380px;flex:1;}
+
+/* ── LEFT ── */
+.left{padding:20px 24px;border-right:1px solid var(--border);overflow-y:auto;}
+
+/* ── STAT CARDS ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+.stat{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:8px; padding:14px 16px;
+  position:relative; overflow:hidden;
+  transition:border-color 0.2s,transform 0.2s;
+  cursor:default;
+}
+.stat:hover{transform:translateY(-2px);}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;}
+.stat::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:1px;opacity:0.3;}
+.stat.crit::before,.stat.crit::after{background:var(--red);}
+.stat.crit{border-color:rgba(255,34,68,0.25);}
+.stat.hi::before,.stat.hi::after{background:var(--high);}
+.stat.hi{border-color:rgba(255,102,0,0.25);}
+.stat.med::before,.stat.med::after{background:var(--amber);}
+.stat.med{border-color:rgba(255,170,0,0.25);}
+.stat.ok::before,.stat.ok::after{background:var(--green);}
+.stat.ok{border-color:rgba(0,255,136,0.25);}
+
+.stat-label{font-size:0.6rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:6px;font-family:'Share Tech Mono',monospace;}
+.stat-val{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:700;line-height:1;letter-spacing:-1px;}
+.stat-val.crit{color:var(--red);text-shadow:0 0 12px rgba(255,34,68,0.5);}
+.stat-val.hi{color:var(--high);text-shadow:0 0 12px rgba(255,102,0,0.4);}
+.stat-val.med{color:var(--amber);text-shadow:0 0 12px rgba(255,170,0,0.4);}
+.stat-val.ok{color:var(--green);text-shadow:0 0 12px rgba(0,255,136,0.4);}
+.stat-sub{font-size:0.6rem;color:var(--muted);margin-top:4px;font-family:'Share Tech Mono',monospace;}
+
+/* ── SECTION ── */
+.sec{font-family:'Share Tech Mono',monospace;font-size:0.62rem;text-transform:uppercase;letter-spacing:3px;color:var(--cyan);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
+
+/* ── SCORE BAR CHART ── */
+.score-chart{margin-bottom:22px;}
+.score-bars{display:flex;align-items:flex-end;gap:3px;height:68px;}
+.score-bar{flex:1;border-radius:2px 2px 0 0;min-height:3px;transition:height 0.4s ease,background 0.3s;cursor:pointer;}
+.score-bar:hover{filter:brightness(1.4);}
+.bar-labs{display:flex;gap:3px;margin-top:3px;}
+.bar-lab{flex:1;text-align:center;font-size:0.48rem;color:var(--muted);font-family:'Share Tech Mono',monospace;overflow:hidden;}
+
+/* ── ALERT FEED ── */
+.feed{display:flex;flex-direction:column;gap:6px;max-height:480px;overflow-y:auto;padding-right:4px;}
+.feed::-webkit-scrollbar{width:3px;}
+.feed::-webkit-scrollbar-track{background:transparent;}
+.feed::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+.alert-row{
+  display:grid; grid-template-columns:8px 1fr auto auto;
+  align-items:center; gap:10px;
+  background:var(--panel); border:1px solid var(--border);
+  border-radius:6px; padding:10px 14px;
+  transition:border-color 0.2s,background 0.2s;
+  animation:rowIn 0.3s ease; cursor:default;
+}
+.alert-row:hover{background:#080f18;border-color:var(--border2);}
+.alert-row.CRITICAL{border-left:2px solid var(--red);background:rgba(255,34,68,0.04);}
+.alert-row.HIGH{border-left:2px solid var(--high);background:rgba(255,102,0,0.04);}
+.alert-row.MEDIUM{border-left:2px solid var(--amber);}
+.alert-row.LOW{border-left:2px solid var(--blue);}
+.alert-row.INFO{border-left:2px solid var(--green);}
+
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+
+.sev-dot{width:8px;height:8px;border-radius:50%;}
+.sev-dot.CRITICAL{background:var(--red);box-shadow:0 0 8px var(--red);}
+.sev-dot.HIGH{background:var(--high);box-shadow:0 0 8px var(--high);}
+.sev-dot.MEDIUM{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+.sev-dot.LOW{background:var(--blue);}
+.sev-dot.INFO{background:var(--green);}
+
+.alert-meta{}
+.alert-id{font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--muted);}
+.alert-desc{font-size:0.8rem;font-weight:600;letter-spacing:0.3px;}
+
+.alert-score{font-family:'Orbitron',monospace;font-size:0.85rem;font-weight:700;text-align:right;}
+.alert-score.CRITICAL{color:var(--red);}
+.alert-score.HIGH{color:var(--high);}
+.alert-score.MEDIUM{color:var(--amber);}
+.alert-score.LOW{color:var(--blue);}
+.alert-score.INFO{color:var(--green);}
+
+.sev-badge{font-size:0.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 7px;border-radius:3px;font-family:'Share Tech Mono',monospace;}
+.sev-badge.CRITICAL{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,34,68,0.3);}
+.sev-badge.HIGH{background:rgba(255,102,0,0.1);color:var(--high);border:1px solid rgba(255,102,0,0.3);}
+.sev-badge.MEDIUM{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(255,170,0,0.3);}
+.sev-badge.LOW{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(0,170,255,0.3);}
+.sev-badge.INFO{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,255,136,0.3);}
+
+/* ── RIGHT PANEL ── */
+.right{background:var(--surface);display:flex;flex-direction:column;overflow-y:auto;}
+.panel-hdr{padding:14px 20px 10px;border-bottom:1px solid var(--border);font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:3px;color:var(--cyan);}
+
+.api-banner{
+  margin:12px 20px 0;padding:8px 12px;border-radius:5px;
+  font-family:'Share Tech Mono',monospace;font-size:0.65rem;
+  border:1px solid var(--border);background:var(--bg);
+  display:flex;align-items:center;gap:7px;
+}
+.api-banner.online{border-color:rgba(0,255,136,0.3);color:var(--green);}
+.api-banner.offline{border-color:rgba(255,34,68,0.3);color:var(--red);}
+.api-banner.checking{color:var(--muted);}
+
+.scorer{padding:16px 20px;flex:1;}
+
+.presets{display:flex;gap:8px;margin-bottom:14px;}
+.preset{flex:1;padding:7px 6px;font-family:'Rajdhani',sans-serif;font-size:0.7rem;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid;transition:all 0.15s;letter-spacing:0.5px;}
+.preset.attack{background:var(--red-dim);color:var(--red);border-color:rgba(255,34,68,0.35);}
+.preset.normal{background:var(--green-dim);color:var(--green);border-color:rgba(0,255,136,0.35);}
+.preset.scan{background:var(--amber-dim);color:var(--amber);border-color:rgba(255,170,0,0.35);}
+.preset:hover{opacity:0.8;transform:translateY(-1px);}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg.full{grid-column:1/-1;}
+label{font-size:0.58rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'Share Tech Mono',monospace;}
+
+input,select{
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:5px; padding:7px 10px; color:var(--text);
+  font-family:'Share Tech Mono',monospace; font-size:0.75rem;
+  outline:none; transition:border-color 0.2s,box-shadow 0.2s; width:100%;
+}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,238,255,0.1);}
+select option{background:var(--panel);}
+
+.analyze-btn{
+  width:100%; padding:11px;
+  background:linear-gradient(135deg,rgba(0,238,255,0.15),rgba(0,170,255,0.10));
+  border:1px solid var(--cyan); border-radius:6px;
+  color:var(--cyan); font-family:'Orbitron',monospace;
+  font-size:0.72rem; font-weight:700; letter-spacing:3px;
+  cursor:pointer; transition:all 0.2s;
+  box-shadow:0 0 16px rgba(0,238,255,0.1);
+  margin-bottom:14px; text-transform:uppercase;
+}
+.analyze-btn:hover{background:rgba(0,238,255,0.2);box-shadow:0 0 24px rgba(0,238,255,0.25);transform:translateY(-1px);}
+.analyze-btn:active{transform:translateY(0);}
+.analyze-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+
+/* Result */
+.result-card{border-radius:8px;padding:14px;border:1px solid var(--border);display:none;animation:fadeUp 0.3s ease;}
+.result-card.show{display:block;}
+.result-card.CRITICAL{border-color:rgba(255,34,68,0.5);background:rgba(255,34,68,0.05);box-shadow:0 0 24px rgba(255,34,68,0.15);}
+.result-card.HIGH{border-color:rgba(255,102,0,0.4);background:rgba(255,102,0,0.05);}
+.result-card.MEDIUM{border-color:rgba(255,170,0,0.35);background:rgba(255,170,0,0.04);}
+.result-card.LOW{border-color:rgba(0,170,255,0.35);background:rgba(0,170,255,0.04);}
+.result-card.INFO{border-color:rgba(0,255,136,0.3);background:rgba(0,255,136,0.03);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+.verdict{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.verdict-icon{font-size:1.5rem;}
+.verdict-sev{font-family:'Orbitron',monospace;font-size:1rem;font-weight:900;letter-spacing:2px;}
+.verdict-sev.CRITICAL{color:var(--red);text-shadow:0 0 16px rgba(255,34,68,0.6);}
+.verdict-sev.HIGH{color:var(--high);}
+.verdict-sev.MEDIUM{color:var(--amber);}
+.verdict-sev.LOW{color:var(--blue);}
+.verdict-sev.INFO{color:var(--green);}
+.verdict-sub{font-size:0.65rem;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:2px;}
+
+/* Score decomposition */
+.score-decomp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.score-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;}
+.score-box-label{font-size:0.55rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-bottom:4px;}
+.score-box-val{font-family:'Orbitron',monospace;font-size:1.05rem;font-weight:700;}
+.score-box-sub{font-size:0.52rem;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:2px;}
+
+/* Hybrid meter */
+.hybrid-meter{margin-bottom:12px;}
+.hybrid-label{display:flex;justify-content:space-between;font-size:0.62rem;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-bottom:5px;}
+.hybrid-label span{font-family:'Orbitron',monospace;font-size:0.95rem;font-weight:700;color:var(--text);}
+.meter-track{height:6px;border-radius:3px;background:var(--border);overflow:hidden;position:relative;}
+.meter-fill{height:100%;border-radius:3px;transition:width 0.9s cubic-bezier(0.34,1.56,0.64,1);}
+
+/* Rules */
+.rules-section{margin-bottom:10px;}
+.rules-title{font-size:0.58rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-bottom:6px;}
+.rule-tag{display:inline-block;font-size:0.58rem;padding:2px 7px;border-radius:3px;margin:2px;background:var(--red-dim);color:var(--red);border:1px solid rgba(255,34,68,0.25);font-family:'Share Tech Mono',monospace;}
+.no-rules{font-size:0.68rem;color:var(--green);font-family:'Share Tech Mono',monospace;}
+
+/* Recommendations */
+.recs-title{font-size:0.58rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-bottom:6px;}
+.rec-item{font-size:0.72rem;line-height:1.4;padding:6px 8px;border-radius:4px;margin-bottom:4px;background:var(--bg);border:1px solid var(--border);border-left:2px solid var(--amber);}
+
+.spinner{display:none;width:14px;height:14px;border:2px solid rgba(0,238,255,0.2);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto;}
+.spinner.show{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:960px){main{grid-template-columns:1fr;}.stats{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="glow1"></div><div class="glow2"></div><div class="glow3"></div>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-badge">🛡</div>
+    <div>
+      SENTINEL
+      <div class="logo-sub">NETWORK INTRUSION DETECTION SYSTEM</div>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="threat-level low" id="threatLevel">
+      <span>●</span> THREAT LEVEL: <span id="threatText">NOMINAL</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="status-dot offline" id="statusDot"></div>
+    <span id="statusText">CONNECTING…</span>
+    <span>|</span>
+    <span id="clock">--:--:--</span>
+    <span>|</span>
+    <span id="sessionAlerts">0 ALERTS</span>
+  </div>
+</header>
+
+<main>
+<!-- LEFT -->
+<div class="left">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat crit">
+      <div class="stat-label">Critical</div>
+      <div class="stat-val crit" id="sCrit">0</div>
+      <div class="stat-sub">this session</div>
+    </div>
+    <div class="stat hi">
+      <div class="stat-label">High</div>
+      <div class="stat-val hi" id="sHigh">0</div>
+      <div class="stat-sub">this session</div>
+    </div>
+    <div class="stat med">
+      <div class="stat-label">Medium</div>
+      <div class="stat-val med" id="sMed">0</div>
+      <div class="stat-sub">this session</div>
+    </div>
+    <div class="stat ok">
+      <div class="stat-label">Avg Score</div>
+      <div class="stat-val ok" id="sAvg">—</div>
+      <div class="stat-sub" id="sF1">F1 —</div>
+    </div>
+  </div>
+
+  <!-- Score history chart -->
+  <div class="score-chart">
+    <div class="sec">Hybrid Risk Score — Last 20 Flows</div>
+    <div class="score-bars" id="scoreChart"></div>
+    <div class="bar-labs"   id="chartLabs"></div>
+  </div>
+
+  <!-- Alert feed -->
+  <div class="sec">Live Alert Feed</div>
+  <div class="feed" id="feed">
+    <div style="text-align:center;padding:50px 0;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.7rem;letter-spacing:2px;">
+      [ AWAITING FLOW ANALYSIS ]
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="right">
+  <div class="panel-hdr">[ FLOW ANALYZER ]</div>
+
+  <div style="padding:0 20px;">
+    <div class="api-banner checking" id="apiBanner">⟳ CONNECTING TO IDS ENGINE…</div>
+  </div>
+
+  <div class="scorer">
+
+    <!-- Presets -->
+    <div class="presets" style="margin-top:12px;">
+      <button class="preset attack" onclick="loadPreset('attack')">⚠ SYN FLOOD</button>
+      <button class="preset scan"   onclick="loadPreset('scan')">🔍 PORT SCAN</button>
+      <button class="preset normal" onclick="loadPreset('normal')">✓ NORMAL</button>
+    </div>
+
+    <!-- Form -->
+    <div class="form-grid">
+      <div class="fg">
+        <label>Source IP</label>
+        <input type="text" id="src_ip" value="192.0.2.10"/>
+      </div>
+      <div class="fg">
+        <label>Destination IP</label>
+        <input type="text" id="dst_ip" value="203.0.113.5"/>
+      </div>
+      <div class="fg">
+        <label>Source Port</label>
+        <input type="number" id="src_port" value="52341" min="0" max="65535"/>
+      </div>
+      <div class="fg">
+        <label>Dest Port</label>
+        <input type="number" id="dst_port" value="4444" min="0" max="65535"/>
+      </div>
+      <div class="fg full">
+        <label>Protocol</label>
+        <select id="protocol">
+          <option>TCP</option><option>UDP</option><option>ICMP</option>
+          <option>DNS</option><option>HTTP</option><option>HTTPS</option>
+          <option>SSH</option><option>FTP</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Packet Count</label>
+        <input type="number" id="pkt_count" value="850" min="0"/>
+      </div>
+      <div class="fg">
+        <label>Byte Count</label>
+        <input type="number" id="byte_count" value="42000" min="0"/>
+      </div>
+      <div class="fg">
+        <label>Duration (sec)</label>
+        <input type="number" id="duration" value="1.2" step="0.1" min="0"/>
+      </div>
+      <div class="fg">
+        <label>Connections</label>
+        <input type="number" id="conn_count" value="320" min="0"/>
+      </div>
+      <div class="fg">
+        <label>Failed Conns</label>
+        <input type="number" id="fail_count" value="180" min="0"/>
+      </div>
+      <div class="fg">
+        <label>SYN Count</label>
+        <input type="number" id="syn_count" value="290" min="0"/>
+      </div>
+      <div class="fg">
+        <label>RST Count</label>
+        <input type="number" id="rst_count" value="140" min="0"/>
+      </div>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyzeFlow()">
+      <span id="btnTxt">▶ ANALYZE FLOW</span>
+      <span class="spinner" id="spinner"></span>
+    </button>
+
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+      <div class="verdict">
+        <span class="verdict-icon" id="vIcon"></span>
+        <div>
+          <div class="verdict-sev" id="vSev"></div>
+          <div class="verdict-sub" id="vSub"></div>
+        </div>
+      </div>
+
+      <!-- Score decomposition -->
+      <div class="score-decomp">
+        <div class="score-box">
+          <div class="score-box-label">Rule</div>
+          <div class="score-box-val" id="ruleScore" style="color:var(--amber)">—</div>
+          <div class="score-box-sub">40% weight</div>
+        </div>
+        <div class="score-box">
+          <div class="score-box-label">Anomaly</div>
+          <div class="score-box-val" id="anomalyScore" style="color:var(--blue)">—</div>
+          <div class="score-box-sub">30% weight</div>
+        </div>
+        <div class="score-box">
+          <div class="score-box-label">ML</div>
+          <div class="score-box-val" id="mlScore" style="color:var(--purple)">—</div>
+          <div class="score-box-sub">30% weight</div>
+        </div>
+      </div>
+
+      <!-- Hybrid meter -->
+      <div class="hybrid-meter">
+        <div class="hybrid-label">HYBRID RISK SCORE <span id="hybridVal">0</span></div>
+        <div class="meter-track">
+          <div class="meter-fill" id="meterFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Triggered rules -->
+      <div class="rules-section">
+        <div class="rules-title">Triggered Signatures</div>
+        <div id="rulesList"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div>
+        <div class="recs-title">Response Recommendations</div>
+        <div id="recsList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let apiOnline = false;
+let scores = [];
+let sessionCounts = {CRITICAL:0, HIGH:0, MEDIUM:0};
+let totalScores = [];
+
+// Clock
+function tick() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-IN', {hour12:false});
+}
+tick(); setInterval(tick, 1000);
+
+// API check
+async function checkApi() {
+  const banner = document.getElementById('apiBanner');
+  const dot    = document.getElementById('statusDot');
+  const txt    = document.getElementById('statusText');
+  try {
+    const r = await fetch(`${API}/`, {signal: AbortSignal.timeout(3000)});
+    if (r.ok) {
+      apiOnline = true;
+      banner.className = 'api-banner online';
+      banner.textContent = '● IDS ENGINE ONLINE — localhost:8000';
+      dot.className = 'status-dot online';
+      txt.textContent = 'ENGINE ONLINE';
+      loadMetrics();
+    } else throw new Error();
+  } catch {
+    apiOnline = false;
+    banner.className = 'api-banner offline';
+    banner.textContent = '✕ IDS ENGINE OFFLINE — uvicorn backend.api:app --port 8000';
+    dot.className = 'status-dot offline';
+    txt.textContent = 'ENGINE OFFLINE';
+  }
+}
+
+async function loadMetrics() {
+  try {
+    const r = await fetch(`${API}/metrics`);
+    const d = await r.json();
+    document.getElementById('sF1').textContent = `F1 ${d.ml_metrics.f1_score.toFixed(3)} | ROC ${d.ml_metrics.roc_auc.toFixed(3)}`;
+  } catch {}
+}
+
+// Presets
+const PRESETS = {
+  attack: { src_ip:'192.0.2.88', dst_ip:'203.0.113.1', src_port:51200, dst_port:80,
+    protocol:'TCP', pkt_count:4200, byte_count:168000, duration:0.8,
+    conn_count:820, fail_count:380, syn_count:3600, rst_count:420 },
+  scan: { src_ip:'198.51.100.44', dst_ip:'203.0.113.5', src_port:54321, dst_port:22,
+    protocol:'TCP', pkt_count:4, byte_count:180, duration:0.05,
+    conn_count:280, fail_count:250, syn_count:280, rst_count:270 },
+  normal: { src_ip:'192.0.2.12', dst_ip:'203.0.113.10', src_port:50821, dst_port:443,
+    protocol:'HTTPS', pkt_count:24, byte_count:18400, duration:3.5,
+    conn_count:2, fail_count:0, syn_count:2, rst_count:0 },
+};
+
+function loadPreset(type) {
+  const p = PRESETS[type];
+  document.getElementById('src_ip').value     = p.src_ip;
+  document.getElementById('dst_ip').value     = p.dst_ip;
+  document.getElementById('src_port').value   = p.src_port;
+  document.getElementById('dst_port').value   = p.dst_port;
+  document.getElementById('protocol').value   = p.protocol;
+  document.getElementById('pkt_count').value  = p.pkt_count;
+  document.getElementById('byte_count').value = p.byte_count;
+  document.getElementById('duration').value   = p.duration;
+  document.getElementById('conn_count').value = p.conn_count;
+  document.getElementById('fail_count').value = p.fail_count;
+  document.getElementById('syn_count').value  = p.syn_count;
+  document.getElementById('rst_count').value  = p.rst_count;
+}
+
+// Analyze
+async function analyzeFlow() {
+  if (!apiOnline) { alert('IDS ENGINE OFFLINE\nRun: uvicorn backend.api:app --reload --port 8000'); return; }
+
+  const btn  = document.getElementById('analyzeBtn');
+  const btxt = document.getElementById('btnTxt');
+  const spin = document.getElementById('spinner');
+  btn.disabled = true; btxt.style.display = 'none'; spin.classList.add('show');
+
+  const payload = {
+    source_ip:               document.getElementById('src_ip').value,
+    destination_ip:          document.getElementById('dst_ip').value,
+    source_port:             parseInt(document.getElementById('src_port').value),
+    destination_port:        parseInt(document.getElementById('dst_port').value),
+    protocol:                document.getElementById('protocol').value,
+    packet_count:            parseInt(document.getElementById('pkt_count').value),
+    byte_count:              parseInt(document.getElementById('byte_count').value),
+    duration_seconds:        parseFloat(document.getElementById('duration').value),
+    connection_count:        parseInt(document.getElementById('conn_count').value),
+    failed_connection_count: parseInt(document.getElementById('fail_count').value),
+    syn_count:               parseInt(document.getElementById('syn_count').value),
+    rst_count:               parseInt(document.getElementById('rst_count').value),
+  };
+
+  try {
+    const r   = await fetch(`${API}/analyze`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const res = await r.json();
+    renderResult(res, payload);
+    addToFeed(res, payload);
+    updateStats(res);
+    updateChart(res.hybrid_score);
+    updateThreatLevel(res.severity);
+  } catch(e) {
+    alert('API ERROR: ' + e.message);
+  } finally {
+    btn.disabled = false; btxt.style.display = ''; spin.classList.remove('show');
+  }
+}
+
+const SEV_ICONS = {CRITICAL:'🚨', HIGH:'⚠️', MEDIUM:'🔶', LOW:'🔵', INFO:'✅'};
+const SEV_COLORS = {CRITICAL:'var(--red)', HIGH:'var(--high)', MEDIUM:'var(--amber)', LOW:'var(--blue)', INFO:'var(--green)'};
+const METER_COLORS = {
+  CRITICAL:'linear-gradient(90deg,#ff0022,#ff2244)',
+  HIGH:    'linear-gradient(90deg,#cc4400,#ff6600)',
+  MEDIUM:  'linear-gradient(90deg,#cc8800,#ffaa00)',
+  LOW:     'linear-gradient(90deg,#0066cc,#00aaff)',
+  INFO:    'linear-gradient(90deg,#009944,#00ff88)',
+};
+
+function renderResult(res, p) {
+  const card = document.getElementById('resultCard');
+  card.className = `result-card show ${res.severity}`;
+
+  document.getElementById('vIcon').textContent = SEV_ICONS[res.severity] || '⚠️';
+  document.getElementById('vSev').textContent  = res.severity;
+  document.getElementById('vSev').className    = `verdict-sev ${res.severity}`;
+  document.getElementById('vSub').textContent  =
+    `${res.source_ip}:${p.source_port} → ${res.destination_ip}:${p.destination_port} [${p.protocol}]`;
+
+  document.getElementById('ruleScore').textContent    = res.rule_score.toFixed(1);
+  document.getElementById('anomalyScore').textContent = res.anomaly_score.toFixed(1);
+  document.getElementById('mlScore').textContent      = res.ml_score.toFixed(1);
+  document.getElementById('hybridVal').textContent    = res.hybrid_score.toFixed(1);
+
+  const fill = document.getElementById('meterFill');
+  fill.style.width      = res.hybrid_score + '%';
+  fill.style.background = METER_COLORS[res.severity] || METER_COLORS.INFO;
+
+  // Rules
+  const rulesList = document.getElementById('rulesList');
+  if (res.triggered_rules.length > 0) {
+    rulesList.innerHTML = res.triggered_rules.map(r =>
+      `<span class="rule-tag">${r}</span>`
+    ).join('');
+  } else {
+    rulesList.innerHTML = '<span class="no-rules">[ NO SIGNATURES TRIGGERED ]</span>';
+  }
+
+  // Recommendations
+  document.getElementById('recsList').innerHTML =
+    res.recommendations.map(r => `<div class="rec-item">${r}</div>`).join('');
+}
+
+function addToFeed(res, p) {
+  const feed = document.getElementById('feed');
+  if (feed.firstElementChild?.style.textAlign === 'center') feed.innerHTML = '';
+
+  const row = document.createElement('div');
+  row.className = `alert-row ${res.severity}`;
+  row.innerHTML = `
+    <div class="sev-dot ${res.severity}"></div>
+    <div class="alert-meta">
+      <div class="alert-id">${res.flow_id} · ${p.protocol}</div>
+      <div class="alert-desc">${res.source_ip} → ${res.destination_ip}:${p.destination_port}</div>
+    </div>
+    <div class="alert-score ${res.severity}">${res.hybrid_score.toFixed(1)}</div>
+    <div class="sev-badge ${res.severity}">${res.severity}</div>
+  `;
+  feed.insertBefore(row, feed.firstChild);
+  if (feed.children.length > 30) feed.removeChild(feed.lastChild);
+
+  const total = parseInt(document.getElementById('sessionAlerts').textContent) + (res.is_alert ? 1 : 0);
+  document.getElementById('sessionAlerts').textContent = `${total} ALERTS`;
+}
+
+function updateStats(res) {
+  if (res.severity === 'CRITICAL') { sessionCounts.CRITICAL++; document.getElementById('sCrit').textContent = sessionCounts.CRITICAL; }
+  if (res.severity === 'HIGH')     { sessionCounts.HIGH++;     document.getElementById('sHigh').textContent = sessionCounts.HIGH; }
+  if (res.severity === 'MEDIUM')   { sessionCounts.MEDIUM++;   document.getElementById('sMed').textContent  = sessionCounts.MEDIUM; }
+
+  totalScores.push(res.hybrid_score);
+  const avg = totalScores.reduce((a,b)=>a+b,0)/totalScores.length;
+  document.getElementById('sAvg').textContent = avg.toFixed(1);
+}
+
+function updateChart(score) {
+  scores.push(score);
+  if (scores.length > 20) scores.shift();
+
+  const chart = document.getElementById('scoreChart');
+  const labs  = document.getElementById('chartLabs');
+  const max   = Math.max(...scores, 10);
+
+  chart.innerHTML = scores.map((s,i) => {
+    const h   = Math.round((s/max)*64)+4;
+    const col = s>=80?'var(--red)':s>=65?'var(--high)':s>=40?'var(--amber)':s>=20?'var(--blue)':'var(--green)';
+    const op  = 0.35 + 0.65*(i/scores.length);
+    return `<div class="score-bar" style="height:${h}px;background:${col};opacity:${op}" title="${s.toFixed(1)}"></div>`;
+  }).join('');
+
+  labs.innerHTML = scores.map(s =>
+    `<div class="bar-lab">${s.toFixed(0)}</div>`
+  ).join('');
+}
+
+function updateThreatLevel(severity) {
+  const el = document.getElementById('threatLevel');
+  const tx = document.getElementById('threatText');
+  const map = {
+    CRITICAL: ['critical','CRITICAL — ACTIVE THREAT'],
+    HIGH:     ['high',    'HIGH — SUSPICIOUS ACTIVITY'],
+    MEDIUM:   ['medium',  'ELEVATED'],
+    LOW:      ['low',     'LOW'],
+    INFO:     ['low',     'NOMINAL'],
+  };
+  const [cls, label] = map[severity] || ['low','NOMINAL'];
+  el.className = `threat-level ${cls}`;
+  tx.textContent = label;
+}
+
+checkApi();
+setInterval(checkApi, 15000);
+</script>
+</body>
+</html>
