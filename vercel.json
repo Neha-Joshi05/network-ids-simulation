@@ -1,9 +1,6 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "frontend/dashboard.html", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/", "dest": "/frontend/dashboard.html" }
+  "rewrites": [
+    { "source": "/", "destination": "/frontend/dashboard.html" }
   ]
 }
